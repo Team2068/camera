@@ -40,6 +40,19 @@ while IFS= read -r line; do
 		kill -s SIGSTOP $FFMPEG_PID1
 		echo "unpausing cam2"
 		kill -s SIGCONT $FFMPEG_PID2
+	elif [[ "$line" == "reset" ]]; then
+		echo "stoping both camera streams"
+		kill $FFMPEG_PID1
+		kill $FFMPEG_PID2
+
+		echo "starting cams back up"
+		./ffmpeg -nostdin -f v4l2 -i /dev/video2 -framerate 30 -c:v h264_rkmpp -flags +low_delay -b:v $BITRATE -bufsize $BUFFER_SIZE -g 30 -bf 0 -flush_packets 1 -c:a copy -f mpegts udp://$DESTINATION_IP:$DESTINATION_PORT?pkt_size=1316 > /dev/null 2>&1 < /dev/null &
+		FFMPEG_PID2=$!
+		echo "Pausing cam2"
+		kill -s SIGSTOP $FFMPEG_PID2 
+
+		./ffmpeg -nostdin -f v4l2 -i /dev/video0 -framerate 30 -c:v h264_rkmpp -flags +low_delay -b:v $BITRATE -bufsize $BUFFER_SIZE -g 30 -bf 0 -flush_packets 1 -c:a copy -f mpegts udp://$DESTINATION_IP:$DESTINATION_PORT?pkt_size=1316 > /dev/null 2>&1 < /dev/null &
+		FFMPEG_PID1=$!
 	else 
 		echo "not a standard command"
 	fi
@@ -49,4 +62,13 @@ echo "connection closed, exiting safely"
 kill $FFMPEG_PID1
 kill $FFMPEG_PID2
 
-#TODO: add a check to make sure the FFMPEG's stopped
+#delay to give it time to execute 
+sleep 1
+
+if [[kill -0 $FFMPEG_PID1 ]]; then
+	kill -9 $FFMPEG_PID1
+fi
+
+if [[kill -0 $FFMPEG_PID2 ]]; then
+	kill -9 $FFMPEG_PID1
+fi
